@@ -28,3 +28,9 @@ I have used a slim python image on the docker container and exposed port 8080 to
 I have made an error in the name of the Requireemnts file which caused me some trouble but other than that the web application is 
 
 runinng.  
+
+I had some issues with pushing to main because the mac didnt have acces to my github repo , so I created a PAT and used it to push .
+
+5. 
+
+I ask claude and he suggest to use kind insted of minikube so ill use it
