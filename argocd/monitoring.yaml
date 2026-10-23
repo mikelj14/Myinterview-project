@@ -1,0 +1,44 @@
+# Prometheus + Grafana (kube-prometheus-stack Helm chart), deployed by Argo CD.
+# Source is the Helm repo itself, not this git repo. Applied once by hand, like application.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.11.0 # pinned: upgrades happen by editing this line in git
+    helm:
+      valuesObject:
+        # kind runs these control-plane parts bound to 127.0.0.1, so scraping them
+        # only produces "target down" alerts. Off to keep the demo clean.
+        kubeEtcd: { enabled: false }
+        kubeControllerManager: { enabled: false }
+        kubeScheduler: { enabled: false }
+        kubeProxy: { enabled: false }
+        alertmanager: { enabled: false } # nowhere to send alerts locally
+        # Without a password the chart generates a random one on every render, so Argo CD
+        # sees a diff forever and keeps restarting Grafana. Password lives in a secret
+        # created by hand (README), never in git.
+        grafana:
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+        prometheus:
+          prometheusSpec:
+            retention: 1d
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # the operator's CRDs are bigger than the 256KB annotation limit of client-side apply
+      - ServerSideApply=true

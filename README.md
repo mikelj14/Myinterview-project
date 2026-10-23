@@ -17,7 +17,7 @@ AI prompts I sent are logged in [`ai-prompts.md`](ai-prompts.md).
 | 2 | App manifests in repo, synced by Argo CD | Deployment (2 replicas, probes, requests/limits), Service, Ingress, Argo CD Application | done |
 | 3 | CI: build + push to GHCR tagged with commit SHA, bump tag in git | GitHub Actions | done |
 | 3 | Zero-downtime rollout demo | rolling update + readiness probe + curl loop | done |
-| Bonus | HPA (2–5), Prometheus/Grafana via Argo CD, EKS notes | metrics-server + HPA | HPA done, rest todo |
+| Bonus | HPA (2–5), Prometheus/Grafana via Argo CD, EKS notes | metrics-server + HPA, kube-prometheus-stack | HPA + monitoring done, EKS notes todo |
 
 ### Why these tools
 - **kind** over minikube: multi-node cluster (1 control-plane + 2 workers) in Docker
@@ -197,6 +197,32 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
   ```
   Result: CPU went `2%` -> `303%` -> `452%` of target; replicas 2 -> 4 -> 5 within ~30 s,
   then stayed at the max of 5 (~410% even with 5 pods, so the cap is what holds it).
+
+### Prometheus + Grafana via Argo CD
+- `argocd/monitoring.yaml`: an Argo CD Application whose source is the
+  `kube-prometheus-stack` Helm chart (pinned `92.11.0`), not this repo. Values inline
+  (`valuesObject`). Bootstrapped once, like the app:
+  ```bash
+  kubectl -n monitoring create secret generic grafana-admin \
+    --from-literal=admin-user=admin --from-literal=admin-password="$(openssl rand -base64 18)"
+  kubectl apply -f argocd/monitoring.yaml
+  ```
+  (`kubectl create namespace monitoring` first on a fresh cluster.)
+- Turned off: scraping etcd / controller-manager / scheduler / kube-proxy (kind binds them
+  to 127.0.0.1, so they'd only show "target down") and Alertmanager (nowhere to send alerts).
+- `ServerSideApply=true`: the operator's CRDs are too big for client-side apply's
+  annotation (256KB limit).
+- Problem hit: with no admin password set, the Grafana chart generates a random one on
+  **every render**. Argo CD then sees the Secret (and the Deployment's checksum annotation)
+  differ from the cluster on every check: forever `OutOfSync`, and selfHeal kept
+  restarting Grafana, which then failed its liveness probe mid-startup. Fix: password in a
+  secret created by hand (`grafana.admin.existingSecret`), so it's stable and not in git.
+- Open Grafana:
+  ```bash
+  kubectl -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d; echo
+  kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
+  # http://localhost:3000, user admin. Dashboards > Kubernetes / Compute Resources / Namespace (Pods), namespace default
+  ```
 
 ## End of build time (fill in at the end)
 - **Finished:**

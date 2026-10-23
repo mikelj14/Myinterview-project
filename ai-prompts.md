@@ -161,3 +161,11 @@ Result:
 
 Result:
 - CPU 2% -> 303% -> 452% of target, replicas 2 -> 4 -> 5 in ~30 s, capped at 5. Recorded in README.
+
+### Prompt 23
+> yes start prometheus and grafana
+
+Result:
+- `argocd/monitoring.yaml`: Argo CD Application for the `kube-prometheus-stack` Helm chart (pinned 92.11.0), kind-unfriendly scrapes and Alertmanager off, `ServerSideApply=true` for the big CRDs.
+- Problem: Grafana chart generates a random admin password on every render, so Argo CD was forever OutOfSync and kept restarting Grafana. Fix: `grafana.admin.existingSecret` pointing at a secret created by hand (password never in git).
+- Prometheus image pull was slow (~7+ min) on first install.
