@@ -6,7 +6,8 @@ metadata:
   labels:
     app: myapp
 spec:
-  replicas: 2
+  # no `replicas`: the HPA below owns the count. If it were set here, Argo CD selfHeal
+  # would keep resetting it to 2 and fight the HPA.
   selector:
     matchLabels:
       app: myapp
@@ -87,3 +88,24 @@ spec:
                 name: myapp
                 port:
                   number: 80
+---
+# Scale 2-5 pods on CPU. Utilization is measured against the CPU *request* (50m),
+# so 70% = ~35m per pod on average. Needs metrics-server (installed by Terraform).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: myapp
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: myapp
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

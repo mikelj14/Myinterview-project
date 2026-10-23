@@ -17,7 +17,7 @@ AI prompts I sent are logged in [`ai-prompts.md`](ai-prompts.md).
 | 2 | App manifests in repo, synced by Argo CD | Deployment (2 replicas, probes, requests/limits), Service, Ingress, Argo CD Application | done |
 | 3 | CI: build + push to GHCR tagged with commit SHA, bump tag in git | GitHub Actions | done |
 | 3 | Zero-downtime rollout demo | rolling update + readiness probe + curl loop | done |
-| Bonus | HPA (2–5), Prometheus/Grafana via Argo CD, EKS notes | | todo |
+| Bonus | HPA (2–5), Prometheus/Grafana via Argo CD, EKS notes | metrics-server + HPA | HPA done, rest todo |
 
 ### Why these tools
 - **kind** over minikube: multi-node cluster (1 control-plane + 2 workers) in Docker
@@ -177,6 +177,18 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
   ~3 min. Fix: always check that the ReplicaSet `CREATED` time falls inside the loop's
   time range, and force an immediate sync with
   `kubectl -n argocd annotate application myapp argocd.argoproj.io/refresh=normal --overwrite`.
+
+## Bonus
+
+### HPA (2-5 pods)
+- HPA needs live CPU numbers, and kind doesn't ship them. Added `helm_release.metrics_server`
+  to `terraform/main.tf` with `--kubelet-insecure-tls` (kind kubelets use self-signed
+  certs). `terraform apply`: 1 added, 0 changed. `kubectl top pods` works.
+- `HorizontalPodAutoscaler` in `k8s/app.yaml`: min 2, max 5, target 70% CPU.
+  The % is measured against the pod's CPU **request** (50m), not the limit.
+- Removed `replicas: 2` from the Deployment. Otherwise there are two owners of the
+  replica count: the HPA scales up, Argo CD selfHeal sees drift from git and sets it back to 2.
+  The HPA's `minReplicas: 2` now guarantees the 2 pods.
 
 ## End of build time (fill in at the end)
 - **Finished:**

@@ -148,3 +148,10 @@ Result:
 Result:
 - Again invalid: loop window 10:28:13-10:28:29, new ReplicaSet created 10:29:33 (after Ctrl+C).
 - Ran the test myself: curl loop in background + `kubectl rollout restart deploy/myapp`. Window 10:30:42-10:31:16, new pods started 10:30:48 / 10:30:58, 146 requests, **0 non-200**. Recorded in README.
+
+### Prompt 21
+> yes start with an autoscaler
+
+Result:
+- Added metrics-server to Terraform (`--kubelet-insecure-tls` for kind), applied (1 added).
+- Added HPA (min 2, max 5, 70% CPU) to `k8s/app.yaml`; removed `replicas: 2` so Argo CD selfHeal doesn't fight the HPA.

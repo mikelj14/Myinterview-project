@@ -120,3 +120,18 @@ resource "helm_release" "argocd" {
 
   depends_on = [helm_release.ingress_nginx]
 }
+
+# 4. metrics-server: CPU/memory metrics for `kubectl top` and the HPA
+resource "helm_release" "metrics_server" {
+  name       = "metrics-server"
+  repository = "https://kubernetes-sigs.github.io/metrics-server/"
+  chart      = "metrics-server"
+  namespace  = "kube-system"
+  timeout    = 600
+
+  # kind kubelets use self-signed certs; without this metrics-server can't scrape them
+  set {
+    name  = "args[0]"
+    value = "--kubelet-insecure-tls"
+  }
+}
