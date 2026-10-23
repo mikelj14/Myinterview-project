@@ -31,8 +31,6 @@ spec:
           env:
             - name: MESSAGE
               value: "Hello from Kubernetes!"
-            - name: APP_VERSION
-              value: "1.0.0"
           # Ready = receives traffic from the Service. Not ready = removed from endpoints.
           readinessProbe:
             httpGet:
@@ -47,6 +45,13 @@ spec:
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
+          # On rollout the pod is removed from the Service endpoints and gets SIGTERM at
+          # the same time. Sleeping first lets ingress-nginx stop sending it traffic
+          # before gunicorn shuts down; gunicorn then finishes in-flight requests.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           resources:
             requests: # what the scheduler reserves on a node
               cpu: 50m

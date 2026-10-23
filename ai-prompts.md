@@ -72,3 +72,12 @@ Result:
 Result:
 - `kubectl get events` showed: `container has runAsNonRoot and image has non-numeric user (appuser), cannot verify user is non-root`. AI mistake: `runAsNonRoot` in the Deployment + `USER appuser` (name) in the Dockerfile don't work together.
 - Dockerfile changed to `USER 10001`; rebuilt image, `kind load`, deleted pods. Now Synced/Healthy, http://localhost serves the page from both pods.
+
+### Prompt 10
+> yes start part 3
+
+Result:
+- `.github/workflows/ci.yaml`: build + push to GHCR tagged with commit SHA, then `sed` the new tag into `k8s/app.yaml` and commit it (Argo CD deploys; no kubectl in CI).
+- Dockerfile: `ARG/ENV APP_VERSION` so the page shows the commit SHA; removed hard-coded `APP_VERSION` from the Deployment.
+- Deployment: `preStop: sleep 5` for zero-downtime.
+- README: Part 3 section + zero-downtime test loop.

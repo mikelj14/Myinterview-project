@@ -123,6 +123,32 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
 - Result: Argo CD app `Synced` / `Healthy`, 2 pods Running, `http://localhost` returns
   the page and refreshing shows both pod names (Service load-balances).
 
+### Part 3 – CI/CD
+- `.github/workflows/ci.yaml`, on push to `main`:
+  1. builds the image and pushes `ghcr.io/mikelj14/myinterview-project:<commit sha>`
+     (login with the built-in `GITHUB_TOKEN`, `permissions: packages: write`);
+  2. `sed` replaces the `image:` line in `k8s/app.yaml` with the new tag and commits it
+     as `github-actions[bot]`. Argo CD sees the commit and rolls out. No kubectl in CI.
+  - Commits pushed with `GITHUB_TOKEN` don't trigger new workflow runs, so the bump
+    commit can't cause an endless loop.
+- The commit SHA is passed as build-arg `APP_VERSION`, so the page shows which build
+  is serving (removed the hard-coded `APP_VERSION` env from the Deployment, it
+  would override it).
+- GHCR package set to **public** (GitHub > Packages > myinterview-project > Package
+  settings > Change visibility), so the cluster pulls without an imagePullSecret.
+- Zero-downtime pieces:
+  - `maxUnavailable: 0`, `maxSurge: 1`: a new pod must be Ready before an old one stops.
+  - readiness probe: a new pod gets traffic only when `/healthz` answers.
+  - `preStop: sleep 5`: endpoint removal and SIGTERM happen at the same time; the
+    sleep gives ingress-nginx time to stop routing to the old pod first.
+  - gunicorn finishes in-flight requests on SIGTERM.
+- Test: start the loop, change `MESSAGE` in `k8s/app.yaml`, commit, push, watch:
+  ```bash
+  while true; do curl -s -o /dev/null -w "$(date +%T) %{http_code}\n" http://localhost/; sleep 0.2; done | tee rollout.log
+  # after the rollout, Ctrl+C, then count non-200 responses (want 0):
+  grep -vc ' 200$' rollout.log
+  ```
+
 ## End of build time (fill in at the end)
 - **Finished:**
 - **Missing:**
