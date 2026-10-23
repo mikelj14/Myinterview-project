@@ -2,3 +2,7 @@
 *.tfstate
 *.tfstate.*
 __pycache__/
+# kubeconfig written by the kind provider (contains the cluster admin client key)
+terraform/*-config
+# zero-downtime test output
+rollout.log

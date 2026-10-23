@@ -103,6 +103,15 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
   `curl http://localhost/` returns nginx 404, so the ingress is reachable and only
   waiting for routes.
 
+- Secret leak found in a review: the kind provider writes the cluster's kubeconfig to
+  `terraform/local-cluster-config` (contains the admin client key), and it got
+  committed with `git add -A`. Untracked it and added `terraform/*-config` to
+  `.gitignore`. Risk was low (API server only listens on 127.0.0.1 of my laptop),
+  but the key stays valid until the cluster is recreated (`terraform destroy && terraform apply`
+  generates a new CA and keys). `terraform.tfstate` also holds the keys; it was
+  gitignored from the start and never committed. Lesson: check `git status` before
+  `git add -A`.
+
 ### Part 2 – GitOps deployment
 - Image loaded into the kind nodes with `kind load docker-image myapp:dev --name local-cluster`
   (the cluster can't see my local Docker images otherwise). Replaced by GHCR in Part 3.

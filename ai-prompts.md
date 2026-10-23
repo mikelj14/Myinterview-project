@@ -81,3 +81,18 @@ Result:
 - Dockerfile: `ARG/ENV APP_VERSION` so the page shows the commit SHA; removed hard-coded `APP_VERSION` from the Deployment.
 - Deployment: `preStop: sleep 5` for zero-downtime.
 - README: Part 3 section + zero-downtime test loop.
+
+### Prompt 11
+> (pasted) `git push` -> `refusing to allow an OAuth App to create or update workflow .github/workflows/ci.yaml without workflow scope`
+
+Result:
+- GitHub requires the extra `workflow` scope on a token to push files under `.github/workflows/` (protects against a leaked token planting CI that steals secrets). The `gh` login token didn't have it.
+- Fix: `gh auth refresh -h github.com -s workflow`, then `git push` again (commit was already made locally).
+
+### Prompt 12
+> make sure we dont push any secrects to the github repo itself
+
+Result:
+- Audited tracked files and full git history (private keys, GitHub tokens, AWS keys, passwords, tfstate).
+- Found `terraform/local-cluster-config` (kind kubeconfig with admin client key) committed and pushed in `b3816d9`. Untracked it, added `terraform/*-config` and `rollout.log` to `.gitignore`.
+- `terraform.tfstate` (also contains keys) confirmed ignored and never committed. Only other hit is `${{ secrets.GITHUB_TOKEN }}`, a reference, not a value.
