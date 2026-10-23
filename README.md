@@ -31,6 +31,7 @@ AI prompts I sent are logged in [`ai-prompts.md`](ai-prompts.md).
 
 ```bash
 # app locally
+pip install -r requirements.txt pytest && pytest -q   # unit tests (same as CI)
 docker build -t myapp:dev .
 docker run --rm -p 8080:8080 myapp:dev     # http://localhost:8080 and /healthz
 
@@ -42,10 +43,83 @@ terraform destroy    # removes everything
 
 kubectl get nodes    # 1 control-plane + 2 workers
 
+# bootstrap Argo CD apps (once per cluster; after this everything goes through git)
+kubectl apply -f argocd/application.yaml          # the app  -> http://localhost
+kubectl create namespace monitoring
+kubectl -n monitoring create secret generic grafana-admin \
+  --from-literal=admin-user=admin --from-literal=admin-password="$(openssl rand -base64 18)"
+kubectl apply -f argocd/monitoring.yaml           # Prometheus + Grafana
+
 # Argo CD UI
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
 kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:8443, user admin
 ```
+
+## Study guide (summary of everything)
+
+### The whole flow in one picture
+```
+git push (code)                                   browser: http://localhost
+   |                                                     |
+GitHub Actions: pytest -> docker build -> Trivy      host port 80
+   -> push ghcr.io/...:<sha>                             | (kind extra_port_mappings)
+   -> bot commit: image tag in k8s/app.yaml        control-plane node
+   |                                                     | (hostPort)
+Argo CD (polls git ~3 min) sees new commit         ingress-nginx -> Ingress rule
+   -> applies k8s/ to the cluster                        |
+   -> Deployment rolling update                    Service myapp :80
+      (new pod Ready before old one stops)               |
+                                                   pods :8080 (gunicorn + Flask), 2-5 via HPA
+```
+Terraform builds the platform (kind cluster, ingress-nginx, Argo CD, metrics-server).
+Argo CD deploys everything on top (app, Prometheus/Grafana). CI never touches the cluster.
+
+### Steps in order
+1. Tools + GitHub repo (Mac: brew, Docker + colima, kubectl, Terraform; later Arch Linux).
+2. Flask app (`/` page, `/healthz`), gunicorn, Dockerfile as non-root uid 10001. Tested with `docker run`.
+3. Terraform: kind 1+2 nodes, ingress-nginx, Argo CD. `terraform apply` / `destroy`.
+4. Manifests in `k8s/` (Deployment, Service, Ingress) + Argo CD Application. App on http://localhost.
+5. CI: build, push to GHCR by commit SHA, bump the tag in git. Argo CD deploys it.
+6. Zero-downtime: maxUnavailable 0, readiness probe, preStop sleep, gunicorn graceful stop. Curl loop: 0 failures.
+7. Bonus: metrics-server + HPA (2-5), load test scaled to 5.
+8. Bonus: Prometheus + Grafana as an Argo CD Application from the Helm chart.
+9. Production review: CI test + Trivy gate, smaller image (pip/setuptools removed).
+
+### Every error we hit
+| # | Where | Error / symptom | Cause | Fix | How found |
+|---|-------|-----------------|-------|-----|-----------|
+| 1 | App | `requirements.txt` had Flask, app didn't use it | AI wrote stdlib `http.server` though I asked for Flask | Rewrote in Flask + gunicorn | Reading files vs README |
+| 2 | Git | ~100 MB pushed, "Large files" warning | Mac `.terraform/` provider binaries committed | Untracked, `.gitignore` | `git ls-files` |
+| 3 | Docker | `Unable to find image 'myapp:dev.'` | Trailing `.` in the command (also `docker-image.`, `application.yaml.`) | Remove the dot | Error message names the wrong value |
+| 4 | Terraform | `An argument named "kind_config" is not expected here` | Provider wants an HCL block, not a YAML heredoc | `kind_config { node { ... } }` | `terraform apply` |
+| 5 | Terraform | `failed to decode base64 data` | Certs already PEM, wrapped in `base64decode()` | Removed it | `terraform apply` |
+| 6 | Terraform | `cannot unmarshal bool into ... nodeSelector of type string` | Helm `set` turned `"true"` into a bool | `type = "string"` | `terraform apply` |
+| 7 | Terraform | (silent) localhost never reaches the ingress | Port 80 mapped to the node, but nothing listened there | `controller.hostPort.enabled=true` | Reading the kind ingress docs |
+| 8 | Terraform | Helm `context deadline exceeded` | Image pulls on a fresh cluster > 300 s | `timeout = 600` | `terraform apply` |
+| 9 | Kubernetes | `CreateContainerConfigError`: `image has non-numeric user (appuser), cannot verify user is non-root` | `runAsNonRoot` can only check a numeric UID | `USER 10001` in Dockerfile | `kubectl get events` |
+| 10 | Git | `refusing to allow an OAuth App to create or update workflow ... without workflow scope` | Token lacked `workflow` scope (needed for `.github/workflows/`) | `gh auth refresh -h github.com -s workflow` | Push error |
+| 11 | Security | Admin kubeconfig (client key) committed + pushed | kind provider writes `terraform/local-cluster-config`; `git add -A` took it | Gitignore, rotate keys (`destroy` + `apply`), rewrite history (`filter-branch`), force-push | Secret audit of history |
+| 12 | Git | `cannot parse expected object name '05af72f'` | After `gc`, the short SHA no longer resolved locally | Full SHA from `git ls-remote` in `--force-with-lease` | Push error |
+| 13 | Git | `unable to execute pager 'less'` | `less` not installed on Arch | `git --no-pager ...` / `pacman -S less` | Error |
+| 14 | Git | `cannot pull with rebase: You have unstaged changes` | Pulled before committing | Commit, then `pull --rebase`, then push | Error |
+| 15 | Git | `fatal: not a git repository` | Ran from the parent folder | `cd Myinterview-project` | Error |
+| 16 | Zero-downtime | Loop showed 0 failures but tested nothing | Argo CD deployed after the loop stopped (~3 min polling) | Check ReplicaSet `CREATED` is inside the loop window; force refresh | Comparing timestamps |
+| 17 | HPA | (design) HPA and Argo CD would fight over replicas | `replicas: 2` in git + selfHeal | Removed `replicas`, HPA owns it | Reasoning before deploy |
+| 18 | Monitoring | Grafana forever `OutOfSync`, restarting | Chart makes a random password each render | `admin.existingSecret` (secret made by hand) | Argo CD resource status + RS diff |
+| 19 | Monitoring | Prometheus `PodInitializing` 7+ min | Slow image pull | Waited | `kubectl describe pod` events |
+| 20 | Security | 4 HIGH CVEs in the image | `pip`/`setuptools` left in the runtime image | Uninstall them after install | Trivy scan |
+
+### Concepts to be able to explain
+- **GitOps**: git is the source of truth; Argo CD pulls and applies, CI only commits.
+  No cluster credentials in CI.
+- **Readiness vs liveness**: readiness = gets traffic or not; liveness = restart or not.
+- **Zero-downtime recipe**: `maxUnavailable: 0` + readiness probe + `preStop` sleep +
+  app that drains on SIGTERM.
+- **Requests vs limits**: request = reserved for scheduling (and the HPA's 100%);
+  limit = hard cap (memory over = OOMKilled, CPU over = throttled).
+- **Why tag by commit SHA**: every image traceable to code, rollback = revert the commit.
+- **Secret hygiene**: check `git status` before `git add -A`; a leaked key must be
+  rotated, deleting it from history alone isn't enough (forks/clones/caches keep it).
 
 ## Progress log
 
@@ -160,6 +234,16 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
 - Verified end to end on the rebuilt cluster: push -> CI built
   `ghcr.io/mikelj14/myinterview-project:0698322...` -> bot commit bumped the tag ->
   Argo CD `Synced`/`Healthy` -> page at http://localhost shows version `0698322...`.
+- **Quality gate added later** (production review): CI now runs, in order,
+  `pytest` (`test_app.py`: `/` shows message/version/pod, `/healthz` returns `ok`) ->
+  build into the runner's Docker only (`load: true`) -> **Trivy** scan, fail on
+  HIGH/CRITICAL CVEs that have a fix -> `docker push` -> tag bump. Any failure stops
+  the job, so nothing broken or vulnerable reaches GHCR or the cluster.
+  - First local scan of the running image: 0 CRITICAL, 4 HIGH, all in `pip`'s bundled
+    `msgpack`/`urllib3` and in `setuptools`: install tools, not used at runtime.
+    Fix: `pip uninstall -y pip setuptools` after installing requirements. Rescan: 0 findings.
+  - `trivy-action` pinned to a commit SHA, not a tag (a tag can be moved to point at
+    malicious code; a SHA can't).
 - Test: start the loop, change `MESSAGE` in `k8s/app.yaml`, commit, push, watch:
   ```bash
   while true; do curl -s -o /dev/null -w "$(date +%T) %{http_code}\n" http://localhost/; sleep 0.2; done | tee rollout.log

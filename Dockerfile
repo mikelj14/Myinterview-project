@@ -1,7 +1,8 @@
 FROM python:3.13-slim
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# pip/setuptools are only needed to install; removing them drops their CVEs from the image
+RUN pip install --no-cache-dir -r requirements.txt && pip uninstall -y pip setuptools
 COPY app.py .
 RUN useradd --create-home --uid 10001 appuser
 # numeric UID: Kubernetes runAsNonRoot can only verify a number, not a username

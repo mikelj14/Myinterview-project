@@ -169,3 +169,17 @@ Result:
 - `argocd/monitoring.yaml`: Argo CD Application for the `kube-prometheus-stack` Helm chart (pinned 92.11.0), kind-unfriendly scrapes and Alertmanager off, `ServerSideApply=true` for the big CRDs.
 - Problem: Grafana chart generates a random admin password on every render, so Argo CD was forever OutOfSync and kept restarting Grafana. Fix: `grafana.admin.existingSecret` pointing at a secret created by hand (password never in git).
 - Prometheus image pull was slow (~7+ min) on first install.
+
+### Prompt 24
+> /production-architect is there any improvemts I can make
+
+Result:
+- Production review of the whole repo; ranked improvement list (pinned chart versions, pod hardening, PDB + spread, CI test/scan gate, one-step bootstrap, secrets management, ingress-nginx retirement).
+
+### Prompt 25
+> do number 4 and in addition summries everything we have done in README so I could study the steps and errors we faced
+
+Result:
+- `test_app.py` (pytest, Flask test client) + CI gate: pytest -> build (load only) -> Trivy (HIGH/CRITICAL, fixed only, action pinned by SHA) -> push -> tag bump.
+- Trivy found 4 HIGH CVEs in pip/setuptools inside the image; Dockerfile now uninstalls them after install. Rescan: 0 findings; container still serves `/healthz`.
+- README: "Study guide" section (flow diagram, steps, table of all 20 errors with cause/fix/how found, key concepts); How to run now includes tests and Argo CD bootstrap.
