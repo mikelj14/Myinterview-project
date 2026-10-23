@@ -123,3 +123,15 @@ Result:
 
 Result:
 - My command order was wrong: rebase needs a clean working tree, so commit first, then `git pull --rebase` (puts my commit on top of the CI bot's tag-bump commit), then push.
+
+### Prompt 17
+> lets continue to the next step
+
+Result:
+- Zero-downtime demo: changed `MESSAGE` in `k8s/app.yaml`, curl loop running against http://localhost while CI builds and Argo CD rolls out, then count non-200 responses in `rollout.log`.
+
+### Prompt 18
+> (pasted) `git add -A && git commit ...` -> `fatal: not a git repository`
+
+Result:
+- Ran from the parent folder `EX.co thecnical interview/`; the repo is the `Myinterview-project/` subfolder. `cd Myinterview-project` first.
