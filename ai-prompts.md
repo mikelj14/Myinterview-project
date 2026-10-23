@@ -141,3 +141,10 @@ Result:
 
 Result:
 - Checked before trusting the 0: loop ran 10:23:21-10:27:15 UTC, but the new ReplicaSet was created at 10:27:19, 4 s after the loop stopped. No pod was replaced during the test, so the 0 proves nothing. Cause: Argo CD polls git every ~3 min, so the rollout came later than expected. Test repeated.
+
+### Prompt 20
+> (pasted) second loop: 0 non-200 of 73, plus ReplicaSet list
+
+Result:
+- Again invalid: loop window 10:28:13-10:28:29, new ReplicaSet created 10:29:33 (after Ctrl+C).
+- Ran the test myself: curl loop in background + `kubectl rollout restart deploy/myapp`. Window 10:30:42-10:31:16, new pods started 10:30:48 / 10:30:58, 146 requests, **0 non-200**. Recorded in README.

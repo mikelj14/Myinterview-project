@@ -16,7 +16,7 @@ AI prompts I sent are logged in [`ai-prompts.md`](ai-prompts.md).
 | 1 | Cluster as code: 1 control-plane + 2 workers, Argo CD, ingress controller | Terraform + `tehcyx/kind` + helm providers, ingress-nginx | done |
 | 2 | App manifests in repo, synced by Argo CD | Deployment (2 replicas, probes, requests/limits), Service, Ingress, Argo CD Application | done |
 | 3 | CI: build + push to GHCR tagged with commit SHA, bump tag in git | GitHub Actions | done |
-| 3 | Zero-downtime rollout demo | rolling update + readiness probe + curl loop | todo |
+| 3 | Zero-downtime rollout demo | rolling update + readiness probe + curl loop | done |
 | Bonus | HPA (2–5), Prometheus/Grafana via Argo CD, EKS notes | | todo |
 
 ### Why these tools
@@ -166,6 +166,17 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
   # after the rollout, Ctrl+C, then count non-200 responses (want 0):
   grep -vc ' 200$' rollout.log
   ```
+- **Result: 0 failed requests.** Loop ran 10:30:42-10:31:16 UTC (146 requests, every
+  one `200`); both new pods started inside that window (10:30:48 and 10:30:58).
+  Rollout triggered with `kubectl rollout restart deploy/myapp`: same RollingUpdate
+  path as a git deploy, just without waiting for CI + Argo CD.
+  The git-driven rollouts (MESSAGE changes, commits `90e31ba`, `c469e65`) also
+  completed fine, page now shows "zero-downtime test 2".
+- Gotcha: my first two loop runs also showed 0 failures, but they proved nothing:
+  the new ReplicaSet was created *after* Ctrl+C. Argo CD polls git only every
+  ~3 min. Fix: always check that the ReplicaSet `CREATED` time falls inside the loop's
+  time range, and force an immediate sync with
+  `kubectl -n argocd annotate application myapp argocd.argoproj.io/refresh=normal --overwrite`.
 
 ## End of build time (fill in at the end)
 - **Finished:**
