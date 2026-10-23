@@ -135,3 +135,9 @@ Result:
 
 Result:
 - Ran from the parent folder `EX.co thecnical interview/`; the repo is the `Myinterview-project/` subfolder. `cd Myinterview-project` first.
+
+### Prompt 19
+> (pasted) `grep -vc ' 200$' rollout.log` -> `0`, `wc -l` -> `915`
+
+Result:
+- Checked before trusting the 0: loop ran 10:23:21-10:27:15 UTC, but the new ReplicaSet was created at 10:27:19, 4 s after the loop stopped. No pod was replaced during the test, so the 0 proves nothing. Cause: Argo CD polls git every ~3 min, so the rollout came later than expected. Test repeated.
