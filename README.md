@@ -189,6 +189,14 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
 - Removed `replicas: 2` from the Deployment. Otherwise there are two owners of the
   replica count: the HPA scales up, Argo CD selfHeal sees drift from git and sets it back to 2.
   The HPA's `minReplicas: 2` now guarantees the 2 pods.
+- Load test: in-cluster busybox pod, 4 parallel `wget` loops against `http://myapp`:
+  ```bash
+  kubectl run load --image=busybox:1.36 --restart=Never -- /bin/sh -c 'for i in 1 2 3 4; do (while true; do wget -q -O- http://myapp >/dev/null; done) & done; wait'
+  kubectl get hpa myapp -w
+  kubectl delete pod load   # stop; scale-down follows after the 5 min stabilization window
+  ```
+  Result: CPU went `2%` -> `303%` -> `452%` of target; replicas 2 -> 4 -> 5 within ~30 s,
+  then stayed at the max of 5 (~410% even with 5 pods, so the cap is what holds it).
 
 ## End of build time (fill in at the end)
 - **Finished:**

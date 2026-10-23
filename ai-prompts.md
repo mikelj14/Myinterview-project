@@ -155,3 +155,9 @@ Result:
 Result:
 - Added metrics-server to Terraform (`--kubelet-insecure-tls` for kind), applied (1 added).
 - Added HPA (min 2, max 5, 70% CPU) to `k8s/app.yaml`; removed `replicas: 2` so Argo CD selfHeal doesn't fight the HPA.
+
+### Prompt 22
+> (pasted) `kubectl get hpa myapp -w` during load test
+
+Result:
+- CPU 2% -> 303% -> 452% of target, replicas 2 -> 4 -> 5 in ~30 s, capped at 5. Recorded in README.
