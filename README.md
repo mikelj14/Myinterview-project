@@ -111,6 +111,12 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
   generates a new CA and keys). `terraform.tfstate` also holds the keys; it was
   gitignored from the start and never committed. Lesson: check `git status` before
   `git add -A`.
+  - Rotated: `terraform destroy && terraform apply` (new cluster = new CA + keys, old
+    key useless). This also proved `destroy` removes everything.
+  - Removed from history: `git filter-branch --index-filter 'git rm --cached
+    --ignore-unmatch terraform/local-cluster-config' -- --all`, deleted the
+    `refs/original` backup, `git gc --prune=now`, then `git push --force-with-lease`.
+    Commit SHAs from that point on changed.
 
 ### Part 2 – GitOps deployment
 - Image loaded into the kind nodes with `kind load docker-image myapp:dev --name local-cluster`
