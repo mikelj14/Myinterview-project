@@ -65,3 +65,10 @@ Result:
 
 Result:
 - Trailing `.` again; file is `argocd/application.yaml`. Checked git status to confirm manifests were pushed before Argo CD syncs.
+
+### Prompt 9
+> (pasted) both myapp pods `0/1 CreateContainerConfigError`
+
+Result:
+- `kubectl get events` showed: `container has runAsNonRoot and image has non-numeric user (appuser), cannot verify user is non-root`. AI mistake: `runAsNonRoot` in the Deployment + `USER appuser` (name) in the Dockerfile don't work together.
+- Dockerfile changed to `USER 10001`; rebuilt image, `kind load`, deleted pods. Now Synced/Healthy, http://localhost serves the page from both pods.

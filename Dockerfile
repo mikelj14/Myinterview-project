@@ -4,7 +4,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 RUN useradd --create-home --uid 10001 appuser
-USER appuser
+# numeric UID: Kubernetes runAsNonRoot can only verify a number, not a username
+USER 10001
 ENV PORT=8080
 EXPOSE 8080
 # gunicorn: production WSGI server; finishes in-flight requests on SIGTERM (needed for zero-downtime rollouts)

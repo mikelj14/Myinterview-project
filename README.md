@@ -115,6 +115,13 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
   manual kubectl changes). Applied once by hand as bootstrap:
   `kubectl apply -f argocd/application.yaml`. After that, every change goes through git.
 - Repo is public, so Argo CD needs no credentials to read it.
+- Bug (from the AI): pods stuck in `CreateContainerConfigError`:
+  `container has runAsNonRoot and image has non-numeric user (appuser), cannot verify
+  user is non-root`. Kubernetes can only check a numeric UID. Fixed the Dockerfile to
+  `USER 10001` (same user, by number), rebuilt, `kind load`, deleted the old pods.
+  Found with `kubectl get events`.
+- Result: Argo CD app `Synced` / `Healthy`, 2 pods Running, `http://localhost` returns
+  the page and refreshing shows both pod names (Service load-balances).
 
 ## End of build time (fill in at the end)
 - **Finished:**
