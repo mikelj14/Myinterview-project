@@ -1,0 +1,20 @@
+# Tells Argo CD: keep the cluster in sync with the k8s/ folder of this repo.
+# Applied once by hand (bootstrap); after that, git is the source of truth.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mikelj14/Myinterview-project.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc # the cluster Argo CD runs in
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true    # delete resources removed from git
+      selfHeal: true # revert manual changes made with kubectl
