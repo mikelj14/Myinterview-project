@@ -14,8 +14,8 @@ AI prompts I sent are logged in [`ai-prompts.md`](ai-prompts.md).
 | 0 | Web service: `GET /` HTML (message, version, pod name), `GET /healthz` 200 | Python + Flask, served by gunicorn | done |
 | 0 | Dockerfile, non-root user | `python:3.13-slim`, uid 10001 | done |
 | 1 | Cluster as code: 1 control-plane + 2 workers, Argo CD, ingress controller | Terraform + `tehcyx/kind` + helm providers, ingress-nginx | done |
-| 2 | App manifests in repo, synced by Argo CD | Deployment (2 replicas, probes, requests/limits), Service, Ingress, Argo CD Application | todo |
-| 3 | CI: build + push to GHCR tagged with commit SHA, bump tag in git | GitHub Actions | todo |
+| 2 | App manifests in repo, synced by Argo CD | Deployment (2 replicas, probes, requests/limits), Service, Ingress, Argo CD Application | done |
+| 3 | CI: build + push to GHCR tagged with commit SHA, bump tag in git | GitHub Actions | done |
 | 3 | Zero-downtime rollout demo | rolling update + readiness probe + curl loop | todo |
 | Bonus | HPA (2–5), Prometheus/Grafana via Argo CD, EKS notes | | todo |
 
@@ -157,6 +157,9 @@ kubectl -n argocd port-forward svc/argocd-server 8443:443   # https://localhost:
   - `preStop: sleep 5`: endpoint removal and SIGTERM happen at the same time; the
     sleep gives ingress-nginx time to stop routing to the old pod first.
   - gunicorn finishes in-flight requests on SIGTERM.
+- Verified end to end on the rebuilt cluster: push -> CI built
+  `ghcr.io/mikelj14/myinterview-project:0698322...` -> bot commit bumped the tag ->
+  Argo CD `Synced`/`Healthy` -> page at http://localhost shows version `0698322...`.
 - Test: start the loop, change `MESSAGE` in `k8s/app.yaml`, commit, push, watch:
   ```bash
   while true; do curl -s -o /dev/null -w "$(date +%T) %{http_code}\n" http://localhost/; sleep 0.2; done | tee rollout.log

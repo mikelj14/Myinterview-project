@@ -104,3 +104,22 @@ Result:
 - Backup bundle made first, then `git filter-branch --index-filter 'git rm --cached --ignore-unmatch terraform/local-cluster-config' -- --all`; verified no reachable commit contains the file.
 - Force-push of the rewritten history was blocked by Claude Code's permission check (destructive git action), so I ran it myself.
 - Rotated keys: `terraform destroy && terraform apply`, then re-bootstrapped Argo CD.
+
+### Prompt 14
+> (pasted) force-push -> `error: cannot parse expected object name '05af72f'`
+
+Result:
+- `git gc --prune=now` had just deleted the old commits locally, so git could no longer expand the short SHA `05af72f`. `--force-with-lease` needs the full SHA; got it from `git ls-remote origin refs/heads/main`.
+
+### Prompt 15
+> (pasted) force-push succeeded with "Large files detected" warnings; `git log` -> `fatal: unable to execute pager 'less'`
+
+Result:
+- Push OK (`05af72f...0698322 forced update`). `less` isn't installed, git uses it as pager: `git --no-pager log ...` or `sudo pacman -S less`.
+- Large-file warnings = the old `Terrform/.terraform/` Mac provider binaries still in early history (commit 8e87990).
+
+### Prompt 16
+> (pasted) `git pull --rebase` -> `error: cannot pull with rebase: You have unstaged changes.`
+
+Result:
+- My command order was wrong: rebase needs a clean working tree, so commit first, then `git pull --rebase` (puts my commit on top of the CI bot's tag-bump commit), then push.
